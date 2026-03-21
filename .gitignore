@@ -1,0 +1,40 @@
+# Environment and secrets
+.env
+.env.local
+
+# Claude Code
+.claude/
+
+# Data (user-specific, not for repo)
+data/library.db
+data/uploads/
+data/screenshots/
+
+# Logs
+logs/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
+*.egg
+.venv/
+venv/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# Project notes (not for repo)
+needs.txt
