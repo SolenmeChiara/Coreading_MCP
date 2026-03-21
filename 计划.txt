@@ -1,0 +1,408 @@
+# 共读书房（Co-Reading Room）— 项目计划
+
+## 概述
+
+一个基于 MCP 服务器的共读系统，让用户和 Claude 能够一起逐页阅读长文档（PDF、TXT），并在阅读过程中进行双向批注对话。核心体验是「一起一点点看完一本书」，而不是让 Claude 一次性分析全文。
+
+Claude 只知道双方一起翻过的内容。没有预读、没有全书索引。共同的阅读记忆随翻页线性积累。
+
+用户是sol，来自加拿大的中文使用者，该文件由claude辅助完成。sol对于计算机语言处于初学阶段，请在深入的部分为sol详细讲解你做了什么，要求sol作出选择时，务必要把每个选项的技术原理，后续影响，可能的风险和限制全部解释清楚。
+
+你目前有的mcp：grok mcp，playwright，gemini。
+你可以：grok来搜索消息，Gemini来辅助写前端（它很擅长炫酷的前端！但你必须要明确，详细，耐心且具体的的讲解要求，使用subagent的大忌就是急躁和大跨步，毕竟很多模型虽然动，但对于语义的领悟很有可能不太如你。）和辅佐debug。
+但请不要生成ai图片作为背景放在网页里！图标是没问题的，但不能出现明确的ai生图内容。
+mcp的配置里有明文api，这个我知道，所以请不要以任何形式对外泄露配置文件。
+
+Phase 1-2 先用 SQLite FTS5 全文检索，零依赖、够快、对中文关键词搜索足够
+Phase 4 再考虑 RAG（向量检索），到时候可以支持 Ollama 本地 embedding 或云端 API。过早引入 RAG 会增加部署复杂度。
+
+
+用户的系统：win11专业版
+
+目标：以一个足够健壮的，可定制化的状态开源，推送仓库
+---
+
+## 技术架构
+
+### 整体结构
+
+```
+Claude Desktop App (通过 MCP 协议连接)
+        ↕
+MCP Server (Python, FastMCP)
+        ↕
+后端服务 (Flask/FastAPI, 同一进程或独立)
+        ↕
+SQLite 数据库 (本地存储)
+        ↕
+前端阅读界面 (HTML + 原生 JS, 浏览器访问，类似playwright的机制)
+```
+
+MCP 服务器暴露工具给 Claude，前端通过 HTTP API 与后端通信，两者共享同一个 SQLite 数据库。
+
+### 运行方式
+
+- MCP 服务器注册到 Claude Desktop 的 `claude_desktop_config.json`
+- 前端阅读界面通过本地 HTTP 服务访问（如 `localhost:8765`）
+- 用户在浏览器里阅读和批注，Claude 在 app 里通过 MCP 工具参与
+
+---
+
+## 数据模型
+
+### SQLite 表结构
+
+```sql
+-- 书架：存储上传的文档
+CREATE TABLE books (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    title TEXT NOT NULL,
+    filename TEXT NOT NULL,
+    total_pages INTEGER NOT NULL,       -- 按段落分页后的总页数
+    current_page INTEGER DEFAULT 1,     -- 阅读进度
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 页面内容：文档解析后按页存储
+CREATE TABLE pages (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    book_id INTEGER NOT NULL,
+    page_number INTEGER NOT NULL,
+    content TEXT NOT NULL,              -- 该页的文本内容
+    screenshot_path TEXT,               -- 可选：对应 PDF 原始页面的截图路径
+    FOREIGN KEY (book_id) REFERENCES books(id),
+    UNIQUE(book_id, page_number)
+);
+
+-- 批注：用户和 Claude 的评论
+CREATE TABLE annotations (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    book_id INTEGER NOT NULL,
+    page_number INTEGER NOT NULL,
+    paragraph_index INTEGER,            -- 段落索引（页内第几段，从0开始）
+    author TEXT NOT NULL,               -- 'user' 或 'claude'
+    content TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (book_id) REFERENCES books(id)
+);
+
+-- 共读记忆：已读页面的摘要（用于上下文压缩）
+CREATE TABLE reading_memory (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    book_id INTEGER NOT NULL,
+    page_number INTEGER NOT NULL,
+    summary TEXT NOT NULL,              -- 该页内容+讨论的压缩摘要
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (book_id) REFERENCES books(id),
+    UNIQUE(book_id, page_number)
+);
+```
+
+我在这里考虑过半自动的rag检索，但具体的想法暂时没有想到。我认为可以支持ollama本地和云端rag检索，这个我们可以具体讨论。
+
+---
+
+## MCP 工具定义
+
+MCP 服务器向 Claude 暴露以下工具：
+
+### 1. `list_books`
+列出书架上所有书及阅读进度。
+
+**参数**：无  
+**返回**：书目列表，含 title, current_page, total_pages
+
+### 2. `read_current_page`
+获取当前正在阅读的页面内容，以及最近的共读记忆上下文。
+
+**参数**：
+- `book_id: int`
+
+**返回**：
+- 当前页文本内容
+- 当前页 PDF 截图（如有，base64 编码图片）
+- 最近 3 页的完整批注历史
+- 更早页面的压缩摘要（从 reading_memory 表取，最多覆盖最近 20 页的摘要），这一点需要以关键词的形式出现，更方便检索。
+- 当前页已有的所有批注
+
+### 3. `annotate`
+Claude 对某个段落写批注。
+
+**参数**：
+- `book_id: int`
+- `page_number: int`
+- `paragraph_index: int`（可选，不传则为对整页的评论）
+- `content: str`
+
+**返回**：确认信息
+
+### 4. `turn_page`
+翻页。翻页时自动触发对刚离开页面的记忆压缩和关键词打标。
+
+**参数**：
+- `book_id: int`
+- `direction: str`（"next" 或 "prev"）
+
+**返回**：新页面的内容（同 `read_current_page` 的返回结构）
+
+**副作用**：如果是向前翻页，对刚离开的页面生成摘要存入 `reading_memory`。摘要应包含该页的核心内容和双方讨论的要点。这个摘要由后端调用 Claude API 生成（用 Haiku 即可，节省成本）。你也可以考虑加入openai兼容，例如openrouter、硅基流动，openai，让使用者自由选择更廉价的总结模型。这个内容最好最好可以直接在前端进行配置，并且存储在特定的环境变量或数据库里。可以统一用一个 base_url + api_key + model 的配置结构，前端提供配置页面，存到 SQLite 的 settings 表。
+
+### 5. `get_page_history`
+回看之前某页的完整批注记录。
+
+**参数**：
+- `book_id: int`
+- `page_number: int`
+
+**返回**：该页原文 + 所有批注（按时间排序）
+
+### 6. `search_memory`
+在共读记忆中搜索之前讨论过的内容。
+
+**参数**：
+- `book_id: int`
+- `query: str`
+
+**返回**：匹配的页面摘要和批注片段（简单用 SQLite FTS5 全文检索，或者也可以尝试rag技术）
+
+---
+
+## 后端 HTTP API
+
+供前端阅读界面调用：
+
+### 文档管理
+- `POST /api/upload` — 上传文档（PDF 或 TXT），触发解析和分页
+- `GET /api/books` — 列出所有书
+- `DELETE /api/books/{id}` — 删除书
+
+### 阅读
+- `GET /api/books/{id}/page/{num}` — 获取指定页内容
+- `POST /api/books/{id}/progress` — 更新阅读进度 `{ page: int }`
+
+### 批注
+- `GET /api/books/{id}/page/{num}/annotations` — 获取该页所有批注
+- `POST /api/books/{id}/page/{num}/annotations` — 用户添加批注 `{ paragraph_index?: int, content: str }`
+
+### 实时更新
+- `GET /api/books/{id}/page/{num}/annotations/poll` — 长轮询，等待新批注出现（前端用这个检测 Claude 是否写了新批注）。或者用 SSE (Server-Sent Events) 推送新批注。
+
+可能的rag技术可以给claude提供更加随机的思考。
+
+---
+
+## 文档解析
+
+### PDF 处理
+- 使用 PyMuPDF (`fitz`) 提取文本和渲染页面截图
+- 文本按段落切分，每 30 段为一页（可配置）
+- 同时将每个 PDF 原始页面渲染为 PNG 截图，存储到 `data/screenshots/{book_id}/` 目录。bookid可以直接提取论文或小说名字，亦然可以直接自己生成
+- 截图和文本段落之间建立映射关系（记录每个文本段落来自 PDF 的哪一页）
+
+### TXT 处理
+- 按空行切分段落
+- 检测编码：先尝试 UTF-8，失败后尝试 GBK（处理中文 TXT 的常见编码问题）
+- 每 30 段为一页
+
+### 配置
+- `PARAGRAPHS_PER_PAGE = 30`（可在配置文件中调整）
+- 上传文件大小限制：50MB（nginx 和后端都要配置）
+
+---
+
+
+### 页面结构
+
+单页应用，包含以下区域：
+
+1. **书架页**：显示所有已上传的书，点击进入阅读
+2. **阅读页**：
+   - 顶栏：书名、当前页码/总页码、翻页按钮
+   - 主体：文本内容区，每个段落可点击
+   - 段落下方：该段落的批注区（粉色气泡=用户，蓝色气泡=Claude）
+   - 有批注的段落左侧显示金色竖线标记
+   - 底部或侧边：整页评论输入区
+
+### 交互逻辑
+
+- 点击段落 → 展开该段落的批注输入框。也可以允许以高光笔形式标注单个句子。
+- 输入批注后提交 → POST 到后端，气泡立即显示
+- 后台定时轮询（或 SSE）→ Claude 的气泡出现时自动渲染
+- 左右方向键或按钮翻页
+- 翻页时自动保存阅读进度
+- 阅读进度自动恢复（打开书时跳转到上次位置）
+
+### 视觉风格
+- 支持深浅二色，有多种配色方案支持，最好直接支持自定义前端美化功能，甚至可以直接让mcp里面的从claude根据要求更改界面配色。（因为我有计划开源项目。我的github账号是ruyuey0722@gmail.com
+
+- 默认的视觉风格遵循anthropic风格，核心信息就是这些：
+
+**主色**：深色背景 `#141413`，浅色背景 `#faf9f5`，中灰 `#b0aea5`，浅灰 `#e8e6dc`
+
+**强调色**：橙 `#d97757`，蓝 `#6a9bcc`，绿 `#788c5d`
+
+**字体**：标题用 Poppins，正文用 Lora，fallback 分别是 Arial 和 Georgia。
+
+如果要用在共读书房的前端上，`#141413` 做阅读区深色背景，`#faf9f5` 做正文字色，然后批注气泡可以用深灰和浅灰区分用户和 Claude
+- 字体：衬线字体。
+- 段落间距宽松，行高 1.8
+- 批注缩略气泡/高光：标注哪些句子被标注了。用户方为绿色，Claude方为橙色，圆角，带小三角指向段落
+- 金色侧边标记线 `#f0ad4e`
+
+---
+
+## 上下文管理策略
+
+这是整个系统最关键的设计。Claude 通过 MCP 工具获取到的上下文按以下规则组装：
+
+### 当前页
+- 完整文本
+- PDF 截图（如有）
+- 当前页所有批注
+
+### 最近 3 页
+- 完整文本 + 完整批注历史
+
+### 第 4~20 页前
+- 仅摘要（来自 reading_memory 表）
+
+### 20 页以前
+- 不主动加载，可通过 `search_memory` 按需检索
+
+### 记忆压缩
+翻页时，后端用第三方模型对刚离开的页面生成摘要。Prompt 大致为：
+
+```
+请用 2-3 句话总结以下页面的内容和讨论要点。保留关键概念、论点和双方的重要观点。
+
+页面内容：
+{page_content}
+
+批注讨论：
+{annotations}
+```
+亦然，rag可能可以管理这些内容，如果数据库能够处理的话。
+
+  需要注意的点：
+- 翻页时记忆压缩是异步的，但如果用户翻页很快，摘要队列可能堆积
+- Claude 通过 MCP 工具写批注 → 前端检测到新批注，这个延迟体验需要优化（SSE 优先于轮询）
+- 30 段一页可能对不同文档差异很大，某些学术 PDF 一段就很长
+
+---
+
+## 文件结构
+
+```
+co-reading/
+├── server.py              # MCP 服务器 + FastAPI 后端（合并在一个进程）
+├── parser.py              # 文档解析模块（PDF/TXT → 段落分页）
+├── memory.py              # 上下文管理和记忆压缩
+├── database.py            # SQLite 数据库操作
+├── config.py              # 配置项
+├── requirements.txt       # Python 依赖
+├── frontend/
+│   ├── index.html         # 单页前端
+│   ├── style.css          # 样式
+│   └── app.js             # 前端逻辑
+├── data/
+│   ├── library.db         # SQLite 数据库
+│   ├── uploads/           # 上传的原始文件
+│   └── screenshots/       # PDF 页面截图
+└── README.md
+```
+
+---
+
+## 依赖
+
+```
+# requirements.txt
+fastmcp
+fastapi
+uvicorn
+PyMuPDF          # PDF 解析和截图
+anthropic        # 记忆压缩调用 Haiku
+python-multipart # 文件上传
+aiofiles
+```
+或者更多其它的。
+---
+
+## 实现顺序
+
+### Phase 1：核心循环（先跑通）
+1. SQLite 数据库初始化
+2. TXT 文档上传和解析（先不做 PDF，降低复杂度）
+3. 后端 API：上传、分页读取、批注读写
+4. MCP 工具：`list_books`, `read_current_page`, `annotate`
+5. 前端：书架页 + 阅读页 + 批注显示和输入
+6. 验证：能上传一本 TXT，在浏览器里阅读，写批注，Claude 通过 MCP 看到并回应
+
+### Phase 2：记忆系统
+1. 翻页功能 + 进度保存
+2. 记忆压缩（翻页时调用 Haiku 生成摘要）
+3. `read_current_page` 返回上下文包（当前页+近页+摘要）
+4. `search_memory` 全文检索
+5. `get_page_history` 回看
+
+### Phase 3：PDF 支持
+1. PDF 文本提取和分页
+2. PDF 页面截图生成
+3. 截图通过 MCP 以 base64 图片返回给 Claude
+4. 前端适配 PDF 内容显示
+
+### Phase 4：体验优化
+1. SSE 实时推送替代轮询
+2. 前端动画和过渡效果
+3. 批注编辑和删除
+4. 导出功能：将某章的批注导出为 Markdown 笔记
+5. 多书同时阅读支持
+
+---
+
+## 配置文件参考
+
+```python
+# config.py
+import os
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DATA_DIR = os.path.join(BASE_DIR, "data")
+DB_PATH = os.path.join(DATA_DIR, "library.db")
+UPLOAD_DIR = os.path.join(DATA_DIR, "uploads")
+SCREENSHOT_DIR = os.path.join(DATA_DIR, "screenshots")
+
+PARAGRAPHS_PER_PAGE = 30
+MAX_UPLOAD_SIZE = 50 * 1024 * 1024  # 50MB
+
+# 记忆压缩用的模型
+SUMMARY_MODEL = "claude-haiku-4-5-20251001"
+
+# 上下文窗口配置
+RECENT_PAGES_FULL = 3        # 最近几页保留完整内容
+SUMMARY_PAGES_RANGE = 20     # 摘要覆盖范围
+
+# 服务端口
+HTTP_PORT = 8765
+```
+
+---
+
+## 给 Claude Code 的备注
+
+- MCP 服务器使用 FastMCP 库（`pip install fastmcp`），参考 FastMCP 文档了解工具注册方式
+- MCP 和 HTTP 服务可以跑在同一个 Python 进程里，用 asyncio 并发
+- 前端不需要任何构建工具，纯 HTML/CSS/JS
+- 数据库操作用 Python 内置的 sqlite3 模块即可，不需要 ORM
+- 编码检测：TXT 上传时先尝试 UTF-8 decode，如果抛出 UnicodeDecodeError 就用 GBK
+- PDF 截图用 `fitz.Page.get_pixmap()` 渲染，DPI 设置 150 即可，平衡清晰度和文件大小
+- 记忆压缩是异步的，翻页请求不应阻塞等待摘要生成完成
+
+##读完之后
+对我讲述你的理解和这个mcp的难度和感受，和我一起评估用户体验。评估并发，运行逻辑，可维护性，前后端使用。
+对于没有敲定使用何种技术的要求，先探讨再生成计划。
+在探讨完毕之后，生成包含所有要求的claude.md文件。然后加入gitignore。
+api明文使用环境变量保管
+gitignore添加.claude
+推送仓库时尽量不要用的你的账户，如果你必须使用你的账户吗，则教我如何自行推送仓库。
