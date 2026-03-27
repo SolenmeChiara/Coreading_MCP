@@ -6,12 +6,17 @@
 .claude/
 
 # Data (user-specific, not for repo)
-data/library.db
-data/uploads/
-data/screenshots/
+co-reading/data/library.db
+co-reading/data/library.db-shm
+co-reading/data/library.db-wal
+co-reading/data/uploads/
+co-reading/data/screenshots/
 
 # Logs
-logs/
+co-reading/logs/
+
+# History (conversation log, not for repo)
+history.txt
 
 # Python
 __pycache__/
@@ -38,3 +43,5 @@ Desktop.ini
 
 # Project notes (not for repo)
 needs.txt
+计划.txt
+history.txt

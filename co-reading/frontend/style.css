@@ -1,0 +1,1471 @@
+/* ========== 共读书房 Co-Reading Room — 样式 ========== */
+
+/* ---------- CSS 变量（咖啡深色主题，默认） ---------- */
+:root {
+    --bg-primary: #1a1612;
+    --bg-secondary: #211d18;
+    --bg-card: #28231d;
+    --bg-input: #2e2822;
+    --bg-hover: #342e27;
+    --bg-shape: #241e18;
+    --text-primary: #e0dcd3;
+    --text-secondary: #a89e91;
+    --text-muted: #6e6459;
+    --border: #332c25;
+    --border-light: #433a31;
+    --accent-orange: #d97757;
+    --accent-green: #8a9a7b;
+    --accent-blue: #7ea8b8;
+    --accent-gold: #c9a855;
+    --spine-color: #3b4238;
+    --shadow-flat: #12100d;
+    --bubble-claude: rgba(217, 119, 87, 0.1);
+    --bubble-user: rgba(138, 154, 123, 0.1);
+    --font-title: 'Poppins', Arial, sans-serif;
+    --font-body: 'Lora', 'Noto Serif SC', 'Songti SC', Georgia, serif;
+    --font-reading: 'Noto Serif SC', 'Songti SC', 'Source Han Serif SC', 'Lora', serif;
+    --line-height: 1.8;
+    --radius: 6px;
+    --radius-lg: 10px;
+    --transition: 0.2s ease;
+}
+
+/* ---------- 浅色主题 ---------- */
+[data-theme="light"] {
+    --bg-primary: #f5f0eb;
+    --bg-secondary: #ebe5dd;
+    --bg-card: #faf6f1;
+    --bg-input: #f0ebe4;
+    --bg-hover: #e5dfd6;
+    --bg-shape: #ece6de;
+    --text-primary: #362c26;
+    --text-secondary: #5c5040;
+    --text-muted: #8a7e6b;
+    --border: #ddd5c9;
+    --border-light: #cdc4b6;
+    --spine-color: #a8b39a;
+    --shadow-flat: #c8c0b4;
+    --bubble-claude: rgba(217, 119, 87, 0.1);
+    --bubble-user: rgba(120, 140, 93, 0.1);
+}
+
+/* ---------- 护眼（古纸）主题 ---------- */
+[data-theme="sepia"] {
+    --bg-primary: #e6d7c3;
+    --bg-secondary: #dccba8;
+    --bg-card: #efe2d0;
+    --bg-input: #e2d4bf;
+    --bg-hover: #d6c8b2;
+    --bg-shape: #dfd0bb;
+    --text-primary: #4a3b32;
+    --text-secondary: #5c4e42;
+    --text-muted: #8a7b6b;
+    --border: #cfc1aa;
+    --border-light: #c0b29a;
+    --spine-color: #8a7a5c;
+    --shadow-flat: #bfb19a;
+    --bubble-claude: rgba(180, 100, 60, 0.12);
+    --bubble-user: rgba(100, 120, 70, 0.12);
+}
+
+/* ---------- Reset ---------- */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    font-family: var(--font-body);
+    line-height: var(--line-height);
+    min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
+    transition: background 0.3s ease, color 0.3s ease;
+}
+
+/* ---------- 公共 ---------- */
+.view { display: none; }
+.view.active { display: block; }
+
+button {
+    cursor: pointer;
+    border: none;
+    background: none;
+    color: var(--text-primary);
+    font-family: var(--font-body);
+    font-size: inherit;
+}
+
+/* ========== 书架页 ========== */
+
+.bookshelf-header {
+    text-align: center;
+    padding: 3rem 1rem 1.5rem;
+    position: relative;
+}
+
+.bookshelf-header h1 {
+    font-family: var(--font-title);
+    font-size: 2rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+}
+
+.bookshelf-header .subtitle {
+    color: var(--text-muted);
+    font-size: 0.9rem;
+    margin-top: 0.3rem;
+}
+
+.bookshelf-header .settings-btn {
+    position: absolute;
+    top: 1.5rem;
+    right: 1.5rem;
+    font-size: 1.4rem;
+    color: var(--text-muted);
+    transition: color var(--transition), transform var(--transition);
+}
+
+.bookshelf-header .settings-btn:hover {
+    color: var(--text-primary);
+    transform: rotate(30deg);
+}
+
+/* 上传区 */
+.upload-area {
+    max-width: 600px;
+    margin: 0 auto 2rem;
+    padding: 2.5rem 2rem;
+    border: 2px dashed var(--border-light);
+    border-radius: var(--radius-lg);
+    text-align: center;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: border-color var(--transition), background var(--transition);
+}
+
+.upload-area:hover,
+.upload-area.dragover {
+    border-color: var(--accent-orange);
+    background: rgba(217, 119, 87, 0.04);
+}
+
+.upload-area p {
+    font-size: 1rem;
+}
+
+.upload-area .upload-icon {
+    font-size: 2rem;
+    margin-bottom: 0.5rem;
+    display: block;
+}
+
+/* 双栏书架 */
+.bookshelf-container {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 3rem;
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 0 1.5rem 3rem;
+    position: relative;
+    z-index: 1;
+}
+
+@media (max-width: 700px) {
+    .bookshelf-container {
+        grid-template-columns: 1fr;
+        gap: 2rem;
+    }
+}
+
+.shelf-column {
+    display: flex;
+    flex-direction: column;
+}
+
+.shelf-label {
+    font-family: var(--font-title);
+    font-size: 0.78rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--text-muted);
+    padding-bottom: 0.6rem;
+    margin-bottom: 0.8rem;
+    border-bottom: 2px solid var(--border);
+}
+
+.shelf-books {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+}
+
+.shelf-empty {
+    color: var(--text-muted);
+    font-size: 0.85rem;
+    padding: 1.5rem 0;
+    text-align: center;
+}
+
+/* 书卡片 — 书脊风格 */
+.book-card {
+    display: flex;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 2px 8px 8px 2px;
+    cursor: pointer;
+    transition: box-shadow var(--transition);
+    position: relative;
+    overflow: hidden;
+}
+
+.book-card:hover {
+    box-shadow: 4px 4px 0px var(--shadow-flat);
+}
+
+.book-card .book-spine {
+    width: 6px;
+    flex-shrink: 0;
+    background: var(--spine-color);
+    border-radius: 2px 0 0 2px;
+}
+
+.book-card .book-body {
+    flex: 1;
+    padding: 0.9rem 1rem;
+    min-width: 0;
+}
+
+.book-card .book-title {
+    font-family: var(--font-title);
+    font-size: 0.95rem;
+    font-weight: 600;
+    margin-bottom: 0.4rem;
+    word-break: break-word;
+    line-height: 1.4;
+}
+
+.book-card .book-meta {
+    font-size: 0.78rem;
+    color: var(--text-muted);
+    line-height: 1.5;
+}
+
+.book-card .progress-bar {
+    height: 2px;
+    background: var(--border);
+    border-radius: 1px;
+    margin-top: 0.6rem;
+    overflow: hidden;
+}
+
+.book-card .progress-bar .progress-fill {
+    height: 100%;
+    background: var(--accent-orange);
+    border-radius: 1px;
+    transition: width 0.3s ease;
+}
+
+.book-card .delete-btn {
+    position: absolute;
+    top: 0.5rem;
+    right: 0.5rem;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    opacity: 0;
+    transition: opacity var(--transition), background var(--transition);
+}
+
+.book-card:hover .delete-btn { opacity: 1; }
+.book-card .delete-btn:hover {
+    background: rgba(255, 80, 80, 0.15);
+    color: #ff5050;
+}
+
+/* ===== 背景几何漂浮 ===== */
+.geo-bg {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: -1;
+    pointer-events: none;
+    overflow: hidden;
+}
+
+.geo-shape {
+    position: absolute;
+    animation: geoDrift linear infinite;
+}
+
+.geo-circle {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: var(--bg-shape);
+}
+
+.geo-triangle {
+    width: 0;
+    height: 0;
+    border-left: 12px solid transparent;
+    border-right: 12px solid transparent;
+    border-bottom: 20px solid var(--bg-shape);
+}
+
+.geo-diamond {
+    width: 16px;
+    height: 16px;
+    background: var(--bg-shape);
+    transform: rotate(45deg);
+}
+
+.geo-line {
+    width: 30px;
+    height: 2px;
+    background: var(--bg-shape);
+}
+
+@keyframes geoDrift {
+    0%   { transform: translate(0, 0) rotate(0deg); }
+    25%  { transform: translate(40px, -60px) rotate(30deg); }
+    50%  { transform: translate(-20px, -100px) rotate(60deg); }
+    75%  { transform: translate(30px, -40px) rotate(90deg); }
+    100% { transform: translate(0, 0) rotate(0deg); }
+}
+
+/* 空状态 */
+.empty-state {
+    text-align: center;
+    color: var(--text-muted);
+    padding: 3rem 1rem;
+    font-size: 0.95rem;
+}
+
+/* ========== 阅读页 ========== */
+
+/* 多书 Tab 栏 */
+.reader-tabs {
+    display: none;
+    position: sticky;
+    top: 0;
+    z-index: 101;
+    background: var(--bg-primary);
+    border-bottom: 1px solid var(--border);
+    padding: 0 0.5rem;
+    gap: 2px;
+    overflow-x: auto;
+    scrollbar-width: thin;
+}
+
+.reader-tab {
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+    padding: 0.4rem 0.6rem;
+    border-radius: var(--radius) var(--radius) 0 0;
+    cursor: pointer;
+    font-size: 0.78rem;
+    color: var(--text-muted);
+    transition: background var(--transition), color var(--transition);
+    white-space: nowrap;
+    max-width: 160px;
+    flex-shrink: 0;
+}
+
+.reader-tab:hover {
+    background: var(--bg-hover);
+    color: var(--text-secondary);
+}
+
+.reader-tab.active {
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+    border-bottom: 2px solid var(--accent-orange);
+}
+
+.reader-tab .tab-title {
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.reader-tab .tab-close {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    padding: 0;
+    opacity: 0;
+    transition: opacity var(--transition), background var(--transition);
+    flex-shrink: 0;
+}
+
+.reader-tab:hover .tab-close {
+    opacity: 1;
+}
+
+.reader-tab .tab-close:hover {
+    background: rgba(255, 80, 80, 0.15);
+    color: #ff5050;
+}
+
+.reader-header {
+    position: sticky;
+    top: 0;      /* tabs 在 flow 中, header 紧跟 */
+    z-index: 100;
+    background: var(--bg-secondary);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.6rem 1.2rem;
+    backdrop-filter: blur(8px);
+}
+
+.reader-header .nav-btn {
+    padding: 0.4rem 0.8rem;
+    border-radius: var(--radius);
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+    transition: background var(--transition), color var(--transition);
+}
+
+.reader-header .nav-btn:hover {
+    background: var(--bg-hover);
+    color: var(--text-primary);
+}
+
+.reader-header .nav-btn:disabled {
+    opacity: 0.3;
+    cursor: default;
+}
+
+.reader-header .export-btn {
+    font-size: 1.1rem;
+    margin-left: 0.3rem;
+}
+
+.reader-header .mode-btn {
+    font-size: 0.95rem;
+    margin-left: 0.2rem;
+}
+
+/* ========== 写作模式 ========== */
+
+.write-paragraph {
+    position: relative;
+    padding: 0.6rem 0 0.6rem 1.2rem;
+    margin-bottom: 0.3rem;
+    border-radius: var(--radius);
+    cursor: text;
+    transition: background var(--transition);
+    border-left: 2px solid transparent;
+}
+
+.write-paragraph:hover {
+    background: var(--bg-hover);
+    border-left-color: var(--accent-blue);
+}
+
+.write-textarea {
+    width: 100%;
+    min-height: 80px;
+    padding: 0.7rem;
+    background: var(--bg-input);
+    color: var(--text-primary);
+    border: 1px solid var(--accent-blue);
+    border-radius: var(--radius);
+    font-family: var(--font-body);
+    font-size: 0.95rem;
+    line-height: 1.8;
+    resize: vertical;
+    outline: none;
+}
+
+.write-add-para {
+    display: block;
+    margin: 1rem auto;
+    padding: 0.5rem 1.5rem;
+    color: var(--text-muted);
+    border: 1px dashed var(--border-light);
+    border-radius: var(--radius);
+    font-size: 0.85rem;
+    transition: all var(--transition);
+}
+
+.write-add-para:hover {
+    color: var(--text-primary);
+    border-color: var(--accent-blue);
+    background: var(--bg-hover);
+}
+
+/* 建议卡片 */
+.suggestion-card {
+    margin: 0.5rem 0 0.8rem 1.2rem;
+    padding: 0.7rem 1rem;
+    border-radius: var(--radius-lg);
+    border-left: 3px solid var(--accent-orange);
+    background: var(--bubble-claude);
+    font-size: 0.88rem;
+}
+
+.suggestion-card.stale {
+    opacity: 0.6;
+    border-left-color: var(--text-muted);
+}
+
+.sug-diff {
+    margin-bottom: 0.4rem;
+}
+
+.sug-old {
+    color: var(--text-muted);
+    margin-bottom: 0.2rem;
+}
+
+.sug-old del {
+    text-decoration: line-through;
+    opacity: 0.7;
+}
+
+.sug-new ins {
+    text-decoration: none;
+    color: var(--accent-green);
+    font-weight: 500;
+}
+
+.sug-reason {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    font-style: italic;
+    margin-bottom: 0.4rem;
+}
+
+.sug-actions {
+    display: flex;
+    gap: 0.4rem;
+    justify-content: flex-end;
+}
+
+.sug-accept {
+    background: var(--accent-green);
+    color: #fff;
+    padding: 0.3rem 0.8rem;
+    border-radius: var(--radius);
+    font-size: 0.8rem;
+}
+
+.sug-accept:hover { background: #6a7d51; }
+
+.sug-reject {
+    color: var(--text-muted);
+    padding: 0.3rem 0.8rem;
+    border-radius: var(--radius);
+    font-size: 0.8rem;
+}
+
+.sug-reject:hover {
+    background: rgba(255, 80, 80, 0.15);
+    color: #ff5050;
+}
+
+.sug-status {
+    text-align: right;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+}
+
+.stale-suggestions {
+    margin-top: 1.5rem;
+    padding: 0.8rem;
+    border: 1px dashed var(--border);
+    border-radius: var(--radius);
+}
+
+.stale-label {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    margin-bottom: 0.5rem;
+}
+
+/* 版本面板 */
+.version-panel {
+    margin-top: 1.5rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+}
+
+.version-panel summary {
+    padding: 0.6rem 1rem;
+    background: var(--bg-secondary);
+    color: var(--text-muted);
+    font-size: 0.82rem;
+    cursor: pointer;
+}
+
+.version-panel summary:hover {
+    background: var(--bg-hover);
+}
+
+.version-actions {
+    padding: 0.5rem 1rem;
+    border-bottom: 1px solid var(--border);
+}
+
+.version-list {
+    padding: 0.5rem 1rem;
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+.version-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.3rem 0;
+    font-size: 0.82rem;
+    border-bottom: 1px solid var(--border);
+}
+
+.version-item:last-child { border-bottom: none; }
+
+.version-info {
+    color: var(--text-secondary);
+}
+
+.version-restore {
+    padding: 0.2rem 0.5rem;
+    font-size: 0.75rem;
+    color: var(--accent-blue);
+    border-radius: var(--radius);
+}
+
+.version-restore:hover {
+    background: var(--bg-hover);
+}
+
+.version-empty {
+    color: var(--text-muted);
+    font-size: 0.82rem;
+    padding: 0.5rem 0;
+}
+
+.reader-header .header-title {
+    font-family: var(--font-title);
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    max-width: 30%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.session-timer {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    font-variant-numeric: tabular-nums;
+    min-width: 4rem;
+    text-align: center;
+}
+
+.page-nav {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.page-nav .page-indicator {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    min-width: 5rem;
+    text-align: center;
+}
+
+/* 内容区 */
+.reader-content {
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 2rem 1.5rem 4rem;
+    font-family: var(--font-reading);
+}
+
+/* PDF 截图 + Canvas 框选 */
+.pdf-screenshot {
+    margin-bottom: 1.5rem;
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    border: 1px solid var(--border);
+    position: relative;
+}
+
+.pdf-screenshot img {
+    width: 100%;
+    height: auto;
+    display: block;
+}
+
+.pdf-screenshot canvas {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    cursor: crosshair;
+}
+
+.pdf-screenshot .bbox-hint {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    background: rgba(0,0,0,0.55);
+    color: #eee;
+    font-size: 0.7rem;
+    padding: 3px 8px;
+    border-radius: 4px;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.3s;
+}
+
+.pdf-screenshot:hover .bbox-hint {
+    opacity: 1;
+}
+
+/* 区域批注高亮标记 */
+.bbox-marker {
+    position: absolute;
+    border: 2px solid var(--accent-orange);
+    background: rgba(217, 119, 87, 0.12);
+    border-radius: 3px;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.bbox-marker.user {
+    border-color: var(--accent-green);
+    background: rgba(120, 140, 93, 0.12);
+}
+
+.bbox-marker:hover {
+    background: rgba(217, 119, 87, 0.25);
+}
+
+.bbox-marker.user:hover {
+    background: rgba(120, 140, 93, 0.25);
+}
+
+.bbox-marker .bbox-marker-label {
+    position: absolute;
+    bottom: -18px;
+    left: 0;
+    font-size: 0.6rem;
+    color: var(--accent-orange);
+    white-space: nowrap;
+    pointer-events: none;
+}
+
+.bbox-marker.user .bbox-marker-label {
+    color: var(--accent-green);
+}
+
+/* 框选时的浮动输入框 */
+.bbox-annotation-popup {
+    position: absolute;
+    z-index: 50;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius);
+    box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+    padding: 0.6rem;
+    width: 280px;
+}
+
+.bbox-annotation-popup textarea {
+    width: 100%;
+    min-height: 60px;
+    padding: 0.5rem;
+    background: var(--bg-input);
+    color: var(--text-primary);
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius);
+    font-family: var(--font-body);
+    font-size: 0.85rem;
+    line-height: 1.5;
+    resize: vertical;
+    outline: none;
+}
+
+.bbox-annotation-popup textarea:focus {
+    border-color: var(--accent-green);
+}
+
+.bbox-annotation-popup .input-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.4rem;
+    margin-top: 0.3rem;
+}
+
+.pdf-text-separator {
+    text-align: center;
+    margin: 1rem 0 1.5rem;
+    color: var(--text-muted);
+    font-size: 0.8rem;
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 0.8rem;
+}
+
+.pdf-text-separator::before,
+.pdf-text-separator::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+}
+
+/* PDF 整页批注输入 */
+.pdf-annotation-input {
+    margin: 1rem 0 1.5rem;
+}
+
+.pdf-annotation-input textarea {
+    width: 100%;
+    min-height: 70px;
+    padding: 0.7rem;
+    background: var(--bg-input);
+    color: var(--text-primary);
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius);
+    font-family: var(--font-body);
+    font-size: 0.9rem;
+    line-height: 1.6;
+    resize: vertical;
+    outline: none;
+    transition: border-color var(--transition);
+}
+
+.pdf-annotation-input textarea:focus {
+    border-color: var(--accent-green);
+}
+
+.pdf-annotation-input .input-actions {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 0.4rem;
+}
+
+/* 提取文字折叠抽屉 */
+.text-drawer {
+    margin-top: 1.5rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+}
+
+.text-drawer summary {
+    padding: 0.6rem 1rem;
+    background: var(--bg-secondary);
+    color: var(--text-muted);
+    font-size: 0.82rem;
+    cursor: pointer;
+    user-select: none;
+    transition: background var(--transition);
+}
+
+.text-drawer summary:hover {
+    background: var(--bg-hover);
+}
+
+.text-drawer-content {
+    padding: 1rem;
+    font-size: 0.88rem;
+    color: var(--text-secondary);
+    line-height: 1.7;
+}
+
+.text-drawer-content .extracted-text {
+    margin-bottom: 0.6rem;
+}
+
+/* 段落 */
+.paragraph {
+    position: relative;
+    padding: 0.6rem 0 0.6rem 1.2rem;
+    margin-bottom: 0.3rem;
+    border-radius: var(--radius);
+    cursor: pointer;
+    transition: background var(--transition);
+}
+
+.paragraph:hover {
+    background: var(--bg-hover);
+}
+
+.paragraph.has-annotation::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0.3rem;
+    bottom: 0.3rem;
+    width: 3px;
+    background: var(--accent-gold);
+    border-radius: 2px;
+}
+
+.paragraph .para-text {
+    font-size: 1rem;
+}
+
+.paragraph .para-index {
+    position: absolute;
+    left: 0;
+    top: 0.6rem;
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    opacity: 0;
+    transition: opacity var(--transition);
+}
+
+.paragraph:hover .para-index {
+    opacity: 0.5;
+}
+
+/* 批注区 */
+.annotations-area {
+    margin: 0.3rem 0 0.8rem 1.2rem;
+}
+
+.annotation-bubble {
+    position: relative;
+    padding: 0.7rem 1rem;
+    margin-bottom: 0.5rem;
+    border-radius: var(--radius-lg);
+    font-size: 0.9rem;
+    line-height: 1.6;
+}
+
+.annotation-bubble.claude {
+    background: var(--bubble-claude);
+    border-left: 3px solid var(--accent-orange);
+}
+
+.annotation-bubble.user {
+    background: var(--bubble-user);
+    border-left: 3px solid var(--accent-green);
+}
+
+.annotation-bubble .bubble-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.3rem;
+}
+
+.annotation-bubble .bubble-author {
+    font-family: var(--font-title);
+    font-size: 0.78rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.annotation-bubble.claude .bubble-author { color: var(--accent-orange); }
+.annotation-bubble.user .bubble-author { color: var(--accent-green); }
+
+.annotation-bubble .bubble-time {
+    font-size: 0.72rem;
+    color: var(--text-muted);
+}
+
+.annotation-bubble .bubble-highlight {
+    font-size: 0.82rem;
+    color: var(--text-muted);
+    font-style: italic;
+    margin-bottom: 0.3rem;
+}
+
+.annotation-bubble .bubble-actions {
+    display: flex;
+    gap: 0.2rem;
+    opacity: 0;
+    transition: opacity var(--transition);
+    margin-left: auto;
+}
+
+.annotation-bubble:hover .bubble-actions {
+    opacity: 1;
+}
+
+.bubble-action-btn {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    transition: background var(--transition), color var(--transition);
+    padding: 0;
+}
+
+.bubble-action-btn:hover {
+    background: var(--bg-hover);
+    color: var(--text-primary);
+}
+
+.bubble-action-delete:hover {
+    background: rgba(255, 80, 80, 0.15);
+    color: #ff5050;
+}
+
+.edit-textarea {
+    width: 100%;
+    min-height: 60px;
+    padding: 0.5rem;
+    background: var(--bg-input);
+    color: var(--text-primary);
+    border: 1px solid var(--accent-green);
+    border-radius: var(--radius);
+    font-family: var(--font-body);
+    font-size: 0.88rem;
+    line-height: 1.5;
+    resize: vertical;
+    outline: none;
+}
+
+.annotation-bubble .bubble-content {
+    color: var(--text-primary);
+}
+
+/* 批注输入框 */
+.annotation-input {
+    margin: 0.5rem 0 1rem 1.2rem;
+    display: none;
+}
+
+.annotation-input.active {
+    display: block;
+}
+
+.annotation-input textarea {
+    width: 100%;
+    min-height: 80px;
+    padding: 0.7rem;
+    background: var(--bg-input);
+    color: var(--text-primary);
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius);
+    font-family: var(--font-body);
+    font-size: 0.9rem;
+    line-height: 1.6;
+    resize: vertical;
+    outline: none;
+    transition: border-color var(--transition);
+}
+
+.annotation-input textarea:focus {
+    border-color: var(--accent-green);
+}
+
+.annotation-input .input-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.5rem;
+    margin-top: 0.4rem;
+}
+
+.annotation-input .btn {
+    padding: 0.4rem 1rem;
+    border-radius: var(--radius);
+    font-size: 0.85rem;
+    transition: background var(--transition);
+}
+
+.annotation-input .btn-submit {
+    background: var(--accent-green);
+    color: #fff;
+}
+
+.annotation-input .btn-submit:hover {
+    background: #6a7d51;
+}
+
+.annotation-input .btn-cancel {
+    color: var(--text-muted);
+}
+
+.annotation-input .btn-cancel:hover {
+    background: var(--bg-hover);
+}
+
+/* ========== 聊天面板 ========== */
+
+.chat-toggle {
+    position: fixed;
+    bottom: 1.5rem;
+    left: 1.5rem;
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    background: var(--accent-orange);
+    color: #fff;
+    font-size: 1.3rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.3);
+    z-index: 200;
+    transition: transform var(--transition), background var(--transition);
+}
+
+.chat-toggle:hover {
+    transform: scale(1.1);
+    background: #c4684a;
+}
+
+.chat-toggle .unread-dot {
+    position: absolute;
+    top: 2px;
+    right: 2px;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: #ff5050;
+    display: none;
+}
+
+.chat-toggle .unread-dot.show { display: block; }
+
+.chat-panel {
+    position: fixed;
+    bottom: 5rem;
+    left: 1.5rem;
+    width: 360px;
+    max-height: 480px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius-lg);
+    box-shadow: 0 4px 24px rgba(0,0,0,0.4);
+    z-index: 200;
+    display: none;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.chat-panel.open {
+    display: flex;
+}
+
+.chat-panel-header {
+    padding: 0.7rem 1rem;
+    border-bottom: 1px solid var(--border);
+    font-family: var(--font-title);
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.chat-panel-header .chat-hint {
+    font-family: var(--font-body);
+    font-size: 0.72rem;
+    color: var(--text-muted);
+    font-weight: 400;
+}
+
+.chat-messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 0.8rem;
+    min-height: 200px;
+    max-height: 340px;
+}
+
+.chat-msg {
+    margin-bottom: 0.6rem;
+    padding: 0.5rem 0.7rem;
+    border-radius: var(--radius);
+    font-size: 0.88rem;
+    line-height: 1.5;
+    max-width: 85%;
+}
+
+.chat-msg.user {
+    background: var(--bubble-user);
+    border-left: 2px solid var(--accent-green);
+    margin-left: auto;
+}
+
+.chat-msg.claude {
+    background: var(--bubble-claude);
+    border-left: 2px solid var(--accent-orange);
+}
+
+.chat-msg .chat-msg-header {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    margin-bottom: 0.2rem;
+}
+
+.chat-msg .chat-msg-author {
+    font-family: var(--font-title);
+    font-size: 0.7rem;
+    font-weight: 600;
+}
+
+.chat-msg .chat-msg-page {
+    font-size: 0.6rem;
+    color: var(--text-muted);
+    background: var(--bg-hover);
+    padding: 0.05rem 0.35rem;
+    border-radius: 3px;
+}
+
+.chat-page-divider {
+    text-align: center;
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    margin: 0.6rem 0 0.3rem;
+    padding: 0.15rem 0;
+}
+
+.chat-msg.user .chat-msg-author { color: var(--accent-green); }
+.chat-msg.claude .chat-msg-author { color: var(--accent-orange); }
+
+.chat-msg .chat-msg-highlight {
+    font-size: 0.78rem;
+    color: var(--text-muted);
+    font-style: italic;
+    margin-bottom: 0.2rem;
+}
+
+.chat-msg .chat-msg-text {
+    color: var(--text-primary);
+}
+
+.chat-msg .chat-msg-time {
+    font-size: 0.65rem;
+    color: var(--text-muted);
+    margin-top: 0.2rem;
+    text-align: right;
+}
+
+.chat-input-area {
+    padding: 0.6rem;
+    border-top: 1px solid var(--border);
+    display: flex;
+    gap: 0.4rem;
+}
+
+.chat-input-area textarea {
+    flex: 1;
+    min-height: 36px;
+    max-height: 80px;
+    padding: 0.4rem 0.6rem;
+    background: var(--bg-input);
+    color: var(--text-primary);
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius);
+    font-family: var(--font-body);
+    font-size: 0.85rem;
+    line-height: 1.4;
+    resize: none;
+    outline: none;
+}
+
+.chat-input-area textarea:focus {
+    border-color: var(--accent-green);
+}
+
+.chat-input-area .chat-send {
+    padding: 0.4rem 0.7rem;
+    background: var(--accent-orange);
+    color: #fff;
+    border-radius: var(--radius);
+    font-size: 0.85rem;
+    align-self: flex-end;
+    transition: background var(--transition);
+}
+
+.chat-input-area .chat-send:hover {
+    background: #c4684a;
+}
+
+.chat-empty {
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 0.82rem;
+    padding: 2rem 1rem;
+}
+
+/* ========== 设置页 ========== */
+
+.settings-header {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    background: var(--bg-secondary);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 0.6rem 1.2rem;
+    backdrop-filter: blur(8px);
+}
+
+.settings-header .header-title {
+    font-family: var(--font-title);
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+}
+
+.settings-content {
+    max-width: 560px;
+    margin: 0 auto;
+    padding: 2rem 1.5rem 4rem;
+}
+
+.settings-section {
+    margin-bottom: 2rem;
+}
+
+.settings-section-title {
+    font-family: var(--font-title);
+    font-size: 1rem;
+    font-weight: 600;
+    margin-bottom: 0.8rem;
+    padding-bottom: 0.4rem;
+    border-bottom: 1px solid var(--border);
+    color: var(--text-primary);
+}
+
+.settings-group {
+    margin-bottom: 1rem;
+}
+
+.settings-label {
+    display: block;
+    font-size: 0.88rem;
+    color: var(--text-secondary);
+    margin-bottom: 0.3rem;
+}
+
+.settings-input,
+.settings-select {
+    width: 100%;
+    padding: 0.5rem 0.7rem;
+    background: var(--bg-input);
+    color: var(--text-primary);
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius);
+    font-family: var(--font-body);
+    font-size: 0.9rem;
+    outline: none;
+    transition: border-color var(--transition);
+}
+
+.settings-input:focus,
+.settings-select:focus {
+    border-color: var(--accent-orange);
+}
+
+.settings-select {
+    cursor: pointer;
+    -webkit-appearance: none;
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%23b0aea5' viewBox='0 0 16 16'%3E%3Cpath d='M8 11L3 6h10z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 0.7rem center;
+    padding-right: 2rem;
+}
+
+.settings-hint {
+    font-size: 0.78rem;
+    color: var(--text-muted);
+    margin-top: 0.2rem;
+}
+
+.settings-error {
+    color: #ff5050;
+    text-align: center;
+    padding: 2rem;
+}
+
+.settings-actions {
+    margin-top: 1.5rem;
+    display: flex;
+    justify-content: flex-end;
+}
+
+.settings-save-btn {
+    padding: 0.6rem 1.5rem;
+    background: var(--accent-orange);
+    color: #fff;
+    border-radius: var(--radius);
+    font-size: 0.9rem;
+    font-weight: 600;
+    transition: background var(--transition);
+}
+
+.settings-save-btn:hover {
+    background: #c4684a;
+}
+
+/* ========== 通知 / Toast ========== */
+
+.toast {
+    position: fixed;
+    bottom: 1.5rem;
+    right: 1.5rem;
+    padding: 0.8rem 1.2rem;
+    background: var(--bg-card);
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius);
+    color: var(--text-primary);
+    font-size: 0.88rem;
+    z-index: 1000;
+    opacity: 0;
+    transform: translateY(10px);
+    transition: opacity 0.3s, transform 0.3s;
+}
+
+.toast.show {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+.toast.error {
+    border-color: #ff5050;
+}
+
+/* ========== 响应式 ========== */
+
+@media (max-width: 768px) {
+    .bookshelf-header { padding: 2rem 1rem 1rem; }
+    .bookshelf-header h1 { font-size: 1.5rem; }
+    .book-grid { grid-template-columns: 1fr; }
+    .reader-content { padding: 1.5rem 1rem 3rem; }
+    .reader-header .header-title { max-width: 25%; font-size: 0.85rem; }
+    .session-timer { font-size: 0.7rem; min-width: 3rem; }
+    .settings-content { padding: 1.5rem 1rem 3rem; }
+    .chat-panel { width: calc(100vw - 3rem); }
+}

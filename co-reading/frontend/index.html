@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>共读书房 Co-Reading Room</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,600;1,400&family=Poppins:wght@400;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/frontend/style.css">
+</head>
+<body>
+    <div id="app">
+
+        <!-- ===== 书架页 ===== -->
+        <div id="bookshelf-view" class="view active">
+            <header class="bookshelf-header">
+                <h1>共读书房</h1>
+                <p class="subtitle">Co-Reading Room</p>
+                <button class="settings-btn" id="btn-settings" title="设置">&#9881;</button>
+            </header>
+
+            <div class="upload-area" id="upload-area">
+                <span class="upload-icon">+</span>
+                <p>拖拽 TXT / PDF 文件到这里，或点击上传</p>
+                <input type="file" id="file-input" accept=".txt,.pdf" hidden>
+            </div>
+
+            <div class="bookshelf-container" id="bookshelf-container">
+                <div class="shelf-column" id="shelf-uploaded">
+                    <div class="shelf-label">上传</div>
+                    <div class="shelf-books" id="shelf-uploaded-books"></div>
+                </div>
+                <div class="shelf-column" id="shelf-created">
+                    <div class="shelf-label">创作</div>
+                    <div class="shelf-books" id="shelf-created-books"></div>
+                </div>
+            </div>
+            <div class="empty-state" id="empty-state" style="display:none;">
+                书架空空如也，上传一本书开始共读吧
+            </div>
+
+            <!-- 背景几何元素 -->
+            <div class="geo-bg" id="geo-bg" aria-hidden="true"></div>
+        </div>
+
+        <!-- ===== 阅读页 ===== -->
+        <div id="reader-view" class="view">
+            <div class="reader-tabs" id="reader-tabs"></div>
+            <header class="reader-header">
+                <button id="btn-back" class="nav-btn">&#8592; 书架</button>
+                <span id="book-title" class="header-title"></span>
+                <span id="session-timer" class="session-timer"></span>
+                <button id="btn-export" class="nav-btn export-btn" title="导出笔记">&#8681;</button>
+                <button id="btn-mode-toggle" class="nav-btn mode-btn" title="切换读/写模式" style="display:none;">&#9998;</button>
+                <div class="page-nav">
+                    <button id="btn-prev" class="nav-btn" title="上一页 (←)">&#8249;</button>
+                    <span id="page-indicator" class="page-indicator"></span>
+                    <button id="btn-next" class="nav-btn" title="下一页 (→)">&#8250;</button>
+                </div>
+            </header>
+
+            <main class="reader-content" id="reader-content"></main>
+        </div>
+
+        <!-- ===== 设置页 ===== -->
+        <div id="settings-view" class="view">
+            <header class="settings-header">
+                <button id="btn-settings-back" class="nav-btn">&#8592; 书架</button>
+                <span class="header-title">设置</span>
+            </header>
+            <main class="settings-content" id="settings-content">
+                <!-- 由 app.js 动态渲染 -->
+            </main>
+        </div>
+
+    </div>
+
+    <!-- 聊天面板（阅读页可见） -->
+    <button class="chat-toggle" id="chat-toggle" style="display:none;" title="与 Claude 讨论">
+        <span>&#9993;</span>
+        <span class="unread-dot" id="chat-unread-dot"></span>
+    </button>
+    <div class="chat-panel" id="chat-panel">
+        <div class="chat-panel-header">
+            <span>与 Claude 讨论</span>
+            <span class="chat-hint">Claude 下次读页时会看到</span>
+        </div>
+        <div class="chat-messages" id="chat-messages">
+            <div class="chat-empty">开始和 Claude 讨论这一页的内容吧</div>
+        </div>
+        <div class="chat-input-area">
+            <textarea id="chat-input" placeholder="写点什么..." rows="1"></textarea>
+            <button class="chat-send" id="chat-send">发送</button>
+        </div>
+    </div>
+
+    <!-- Toast 通知 -->
+    <div class="toast" id="toast"></div>
+
+    <script src="/frontend/app.js"></script>
+</body>
+</html>

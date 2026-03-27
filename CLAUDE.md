@@ -4,6 +4,7 @@
 
 基于 MCP 协议的共读系统。用户在浏览器里阅读文档，Claude 通过 MCP 工具参与阅读和批注。
 核心理念：「一起一点点看完一本书」——Claude 只知道双方一起翻过的内容，没有预读、没有全书索引。
+具体的“感觉”存放在计划.txt内。
 
 ## 用户
 
@@ -11,6 +12,8 @@
 - 环境：Windows 11 专业版
 - 中文交流，偶尔夹英文
 - Python 初学者，技术决策需详细解释
+- 你必须要在完成任务时自己进行review和技术验证！跑验证不必问询意见，直接做。
+- 本手册（CLAUDE.md）需要持续更新，完成功能、发现问题、有新想法时直接写入，不必确认。
 - GitHub 邮箱：ruyuey0722@gmail.com
 
 ## 架构
@@ -83,7 +86,27 @@ CREATE TABLE annotations (
     highlight_text TEXT,                -- 高亮的具体文本片段（可选）
     author TEXT NOT NULL,               -- 'user' 或 'claude'
     content TEXT NOT NULL,
+    target_type TEXT NOT NULL DEFAULT 'paragraph',  -- paragraph | region | page_note
+    bbox_x0 REAL,                      -- 归一化坐标 0~1（region 类型）
+    bbox_y0 REAL,
+    bbox_x1 REAL,
+    bbox_y1 REAL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (book_id) REFERENCES books(id)
+);
+
+-- PDF 结构化文本块
+CREATE TABLE text_blocks (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    book_id INTEGER NOT NULL,
+    page_number INTEGER NOT NULL,
+    block_index INTEGER NOT NULL,
+    content TEXT NOT NULL,
+    bbox_x0 REAL NOT NULL,             -- 归一化坐标 0~1
+    bbox_y0 REAL NOT NULL,
+    bbox_x1 REAL NOT NULL,
+    bbox_y1 REAL NOT NULL,
+    block_type TEXT NOT NULL DEFAULT 'text',
     FOREIGN KEY (book_id) REFERENCES books(id)
 );
 
@@ -144,16 +167,22 @@ CREATE TABLE schema_version (
 ## MCP 工具
 
 ### 核心工具
-| 工具 | 功能 |
-|---|---|
-| `list_books` | 列出书架和阅读进度 |
-| `read_current_page` | 获取当前页内容+上下文+时间信息 |
-| `annotate` | 对段落/高亮文本写批注 |
-| `turn_page` | 翻页，触发异步记忆压缩 |
-| `get_page_history` | 回看某页原文+批注 |
-| `search_memory` | FTS5 全文检索共读记忆 |
-| `check_notifications` | 查看用户的高亮/提问/Call Claude 请求 |
-| `update_theme` | 更改前端配色方案 |
+| 工具 | 功能 | Phase |
+|---|---|---|
+| `list_books` | 列出书架和阅读进度 | 1 |
+| `read_current_page` | 获取当前页内容+上下文+近页+摘要+时间 | 1+2 |
+| `annotate` | 对段落/高亮文本写批注 | 1 |
+| `reply` | 回复用户在网页聊天框的留言 | 1 |
+| `turn_page` | 翻页（Claude 可主动翻页），触发异步记忆压缩 | 2 |
+| `get_page_history` | 回看某页原文+批注+记忆摘要 | 2 |
+| `search_memory` | FTS5 全文检索共读记忆（fallback LIKE） | 2 |
+| `check_notifications` | 查看用户的未读消息（不标记已读） | 2 |
+| `update_theme` | 更改前端配色方案（dark/light/sepia） | 2 |
+| `export_notes` | 导出整本书的阅读笔记摘要 | 4 |
+| `read_draft` | 查看写作模式草稿内容+段落编号+revision | 5 |
+| `suggest_edit` | 对草稿段落提出修改建议（用户 Accept/Reject） | 5 |
+| `build_search_index` | 为某本书构建向量检索索引 | 5 |
+| `create_book` | 创建新书（Claude 生成内容，可选读/写模式） | 5 |
 
 ### 上下文拼装规则（read_current_page 返回内容）
 - 当前页：完整文本 + PDF 截图 (base64) + 所有批注
@@ -179,9 +208,12 @@ CREATE TABLE schema_version (
 - `GET /api/books/{id}/page/{num}/annotations` — 获取批注
 - `POST /api/books/{id}/page/{num}/annotations` — 添加批注
 
-### 交互
-- `POST /api/books/{id}/call-claude` — 发送高亮/问题给 Claude
-- `GET /api/books/{id}/page/{num}/events` — SSE 事件流（新批注推送）
+### 聊天
+- `GET /api/books/{id}/page/{num}/chat` — 获取聊天消息
+- `POST /api/books/{id}/page/{num}/chat` — 发送消息给 Claude
+
+### 进度轮询
+- `GET /api/books/{id}/current-progress` — 轻量端点，前端 3s 轮询检测 Claude 翻页
 
 ### 设置
 - `GET /api/settings` — 获取所有设置
@@ -278,14 +310,16 @@ CREATE TABLE schema_version (
 
 ```
 co-reading/
-├── server.py              # MCP 服务器（FastMCP, stdio）
-├── web.py                 # FastAPI HTTP 服务器
+├── server.py              # MCP 服务器（FastMCP, stdio），8 个工具
+├── web.py                 # FastAPI HTTP 服务器，端口 8765
 ├── parser.py              # 文档解析（PDF/TXT → 分页）
-├── memory.py              # 上下文管理和记忆压缩
-├── database.py            # SQLite 数据库操作
-├── config.py              # 配置项
+├── memory.py              # 上下文拼装 + 记忆压缩（Phase 2 新增）
+├── database.py            # SQLite 数据库操作，11 张表
+├── embedding.py           # RAG 向量检索（provider 抽象 + 分块 + 混合检索 + 降级）
+├── config.py              # 配置项 + 环境变量 fallback
 ├── requirements.txt
-├── start.bat              # Windows 一键启动脚本
+├── start.bat              # Windows 一键启动脚本（stdio 模式）
+├── start_http.bat         # Windows 一键启动（Streamable HTTP 模式）
 ├── .env.example           # 环境变量模板（不含真实密钥）
 ├── frontend/
 │   ├── index.html
@@ -301,37 +335,101 @@ co-reading/
 
 ## 实现阶段
 
-### Phase 1：核心循环
+### Phase 1：核心循环 ✅ 已完成
 1. SQLite 初始化 + schema version
 2. TXT 上传和解析（按字数分页）
 3. 后端 API：上传、分页读取、批注读写
 4. MCP 工具：list_books, read_current_page, annotate
 5. 前端：书架页 + 阅读页 + 批注显示和输入
-6. 验证：上传 TXT → 浏览器阅读 → 写批注 → Claude 通过 MCP 读到并回应
+6. 额外：聊天系统（chat_messages 表 + chat API + 前端聊天面板 + reply MCP 工具）
 
-### Phase 2：记忆系统
-1. 翻页 + 进度保存 + 阅读会话时间追踪
-2. 记忆压缩（异步，可配置模型）
-3. read_current_page 上下文拼装（当前页+近页+摘要+时间）
-4. search_memory FTS5 全文检索
-5. get_page_history 回看
-6. check_notifications + Call Claude 功能
-7. 前端设置页（模型配置、主题切换）
+### Phase 2：记忆系统 ✅ 已完成
+1. turn_page MCP 工具（Claude 可主动翻页，浏览器 3s 轮询自动同步）
+2. 阅读会话追踪（sessions/start + end + 前端计时器显示）
+3. 记忆压缩（翻页时异步调用 OpenAI 兼容 API，fire-and-forget）
+4. read_current_page 完整上下文拼装（当前页+近3页全文+第4-20页摘要+时间+未读消息）
+5. search_memory FTS5 全文检索（FTS5 不可用时 LIKE fallback）
+6. get_page_history 回看 + check_notifications 查看未读
+7. update_theme 远程改配色（dark/light/sepia）
+8. 前端设置页（齿轮入口 → 主题选择 + 模型配置 → 保存到 DB settings 表）
+9. 三套主题：深色（默认）、浅色、护眼（CSS 变量切换，body 过渡动画）
 
-### Phase 3：PDF 支持
-1. PDF 文本提取和原始页分页
-2. PDF 截图生成
-3. 截图 base64 返回给 Claude
-4. 前端适配 PDF 显示
+### Phase 3：PDF 支持 + 跨页聊天 ✅ 已完成
+1. PDF 上传和解析（PyMuPDF，1 PDF 页 = 1 共读页）
+2. PDF 截图生成（DPI 150，存 data/screenshots/{book_id}/page_N.png）
+3. MCP read_current_page 返回 TextContent + ImageContent（Claude 可"看到"PDF 截图）
+4. 前端 PDF 截图显示（截图为主视图，提取文字可折叠隐藏，PDF 批注为整页级别）
+5. 聊天面板改为跨页连续对话（全书消息 + 页码分隔标签）
+6. /api/screenshots 端点提供截图文件，路径穿越防护
+7. delete_book_cascade 级联清理截图目录
 
-### Phase 4：体验优化
-1. SSE 替代轮询
-2. 前端动画和过渡
-3. 批注编辑和删除
-4. 导出 Markdown 笔记
-5. 多书同时阅读
-6. Streamable HTTP 传输支持（第三方 MCP runner）
-7. RAG 向量检索（Ollama 本地 embedding 或云端）
+### Phase 4：体验优化（按 Sol 的优先级排序）
+1. ~~批注编辑和删除~~ ✅ 已完成
+   - 用户：hover 气泡显示编辑/删除按钮，只能改自己的
+   - Claude：`delete_my_annotation` MCP 工具，只能删 author=claude 的
+   - PUT /api/annotations/{id} + DELETE /api/annotations/{id}
+   - 轮询改用 ID+内容签名比较（修复了 length 比较漏检问题）
+2. ~~SSE 替代轮询~~ ✅ 已完成
+   - GET /api/books/{id}/events SSE 端点（1s 轮询检测批注/聊天/进度变更）
+   - 前端 EventSource 替代 3 个 setInterval，断连自动回退轮询
+3. ~~PDF bbox 批注系统~~ ✅ 已完成
+   - annotations 表新增 target_type + bbox_x0/y0/x1/y1 列（幂等迁移）
+   - text_blocks 表存储 PDF 结构化文本块（含归一化 bbox 坐标）
+   - 前端 canvas overlay 支持鼠标/触摸拖拽框选区域
+   - 框选后弹出输入框，自动匹配选中区域的文本块
+   - 已有 region 批注在截图上显示可点击高亮标记
+   - MCP annotate 工具支持 target_type + bbox 参数
+   - Schema version 2 → 3
+4. ~~导出 Markdown 笔记~~ ✅ 已完成
+   - MCP `export_notes` 工具：返回阅读过页面的批注摘要
+   - HTTP `GET /api/books/{id}/export`：生成完整 Markdown（摘要+批注+讨论）
+   - 前端阅读页导出按钮，点击下载 .md 文件
+5. ~~多书同时阅读（tab 切换）~~ ✅ 已完成
+   - `state.openBooks` 存储多本书的独立会话状态
+   - 前端 tab 栏：多本书同时打开，点击切换，SSE 按需开关
+   - 关闭 tab 时结束会话并清理 SSE 连接
+   - 从书架重复点开已打开的书 → 直接切 tab，不重建
+6. ~~Streamable HTTP 传输~~ ✅ 已完成
+   - server.py 支持 `--http`（Streamable HTTP）和 `--sse` 启动参数
+   - 可配置 `MCP_HOST`/`MCP_PORT` 环境变量（默认 127.0.0.1:8766）
+   - `start_http.bat`：一键启动 Web + MCP HTTP 双服务器
+   - 第三方 MCP 客户端连接 `http://host:port/mcp`
+7. ~~RAG 向量检索~~ ✅ 已完成
+   - `embedding.py`：provider 抽象（Ollama/云端 OpenAI 兼容）、中文段落级分块（带重叠）
+   - 混合检索：FTS5 + 向量双路召回 → 重排去重 → 可追溯证据格式
+   - 全失败路径降级：embedding 不可用→纯 FTS5；FTS5 也失败→LIKE；全空→明确提示
+   - `search_memory` MCP 工具增强为混合检索（向量索引存在时自动启用）
+   - `build_search_index` MCP 工具触发索引构建
+   - `POST /api/books/{id}/index` + `GET /api/books/{id}/index/status` HTTP 端点
+   - 设置页支持 embedding API 配置（base_url/api_key/model）
+   - Schema version 4→5，embeddings 表幂等迁移，cascade delete
+8. 前端动画和过渡
+
+### Phase 5：写作模式 ✅ 已完成
+核心理念：Claude 作为写作搭档，可以批注也可以提出结构化修改建议，但永远不直接改正文。
+
+1. **数据层**（Schema v3 → v4）
+   - books 表加 `mode` 列（read/write）
+   - `draft_pages` 表：可编辑草稿，带 revision 乐观锁 + paragraph_sigs JSON
+   - `versions` 表：版本快照，带 source（manual/accept/restore）
+   - `suggestions` 表：Claude 修改建议，段落签名锚定，状态流转 pending→accepted/rejected/stale
+2. **MCP 工具**
+   - `read_draft`：查看草稿内容 + 段落编号 + revision
+   - `suggest_edit`：对段落提出修改建议（仅 TXT + write 模式）
+3. **HTTP API**
+   - `PUT /api/books/{id}/mode` 切换模式
+   - `GET/PUT /api/books/{id}/draft/{page}` 草稿 CRUD（带 revision 乐观锁）
+   - `POST /api/books/{id}/draft/{page}/versions` 保存版本
+   - `POST /api/books/{id}/draft/{page}/restore/{vid}` 恢复版本（自动保存当前）
+   - `GET /api/books/{id}/page/{num}/suggestions` 列出建议
+   - `POST .../suggestions/{id}/accept|reject` 采纳/拒绝
+   - SSE 新增 `draft` 和 `suggestions` 事件
+4. **前端**
+   - 模式切换按钮（仅 TXT 显示）
+   - `renderWriteMode`：段落点击编辑、auto-save 1.5s debounce、revision 冲突自动刷新
+   - 建议卡片：删除线旧文 + 高亮新文 + Accept/Reject
+   - 版本面板：保存/恢复/历史列表
+   - stale 建议自动检测和展示
 
 ## 日志
 
@@ -356,3 +454,33 @@ co-reading/
 - README 包含安装和使用说明
 - 支持第三方 MCP runner（Phase 4）
 - Git 推送使用 Sol 的 GitHub 账户，不使用 Claude 的凭据
+- 仓库地址：https://github.com/SolenmeChiara/Coreading_MCP
+
+## 欢迎文本
+
+- `data/welcome.txt` 是新用户首次启动时自动导入的默认文本
+- 内容是关于共读意义、批注意义、阅读交流意义的思考 + 项目介绍
+- web.py 启动时检测书架为空则自动 seed，已有书时跳过
+- 不使用第一人称
+
+## 已知问题和注意事项
+
+- **Schema 迁移**：database.py 用 `CREATE TABLE IF NOT EXISTS` + `ALTER TABLE ADD COLUMN` 实现幂等迁移，v1/v2 数据库升级 v3 时自动创建新表和列，不丢数据
+- **记忆压缩依赖外部 API**：需要在设置页或环境变量配置 `SUMMARY_API_BASE/KEY/MODEL`，未配置时翻页正常但不生成摘要（静默跳过）
+- ~~批注轮询用数量比较~~ 已修复：改用 ID+内容长度签名比较，编辑和删除都能正确检测
+- **`@app.on_event("shutdown")`**：FastAPI 旧 API，有 deprecation warning，Phase 4 可改为 lifespan
+- **FTS5 中文分词**：SQLite FTS5 默认按空格分词，对中文分词效果有限（整词匹配可以，拆字不行）。Phase 4 引入 RAG 时可解决
+
+## PDF 批注架构决策
+
+**问题**：PDF 提取文字（语义坐标系）和截图（视觉坐标系）冲突。OCR 不准时，段落定位失真，文字被打乱。
+
+**已实现方案（Phase 4.3）**：
+- 截图为主视图，提取文字折叠隐藏
+- 三种批注类型：region（bbox 区域）| page_note（整页）| paragraph（TXT 段落）
+- bbox 坐标归一化为 0~1（相对于页面尺寸），前端 canvas 渲染适配任意尺寸
+- text_blocks 表存储 PDF 结构化文本块（含 bbox），框选时自动匹配文本
+- 前端 canvas overlay 支持鼠标/触摸拖拽框选，弹出式输入框
+- 已有 region 批注在截图上显示可点击高亮标记，点击跳转到对应气泡
+- MCP annotate 工具支持 target_type + bbox 参数，Claude 可以标注特定区域
+- TXT 模式不变，保留段落级批注
