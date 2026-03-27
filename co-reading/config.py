@@ -17,7 +17,7 @@ MAX_UPLOAD_SIZE = 50 * 1024 * 1024  # 50 MB
 SCREENSHOT_DPI = 150                # PDF 截图分辨率
 
 # HTTP 服务
-HTTP_HOST = os.environ.get("HTTP_HOST", "127.0.0.1")
+HTTP_HOST = os.environ.get("HTTP_HOST", "127.0.0.1").strip()
 HTTP_PORT = 8765
 
 # 数据库版本

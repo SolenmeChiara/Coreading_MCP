@@ -180,12 +180,17 @@ python web.py
 
 > 请用 start_reading prompt 开始共读 book_id=1 的书
 
-### 7. 连接手机 Claude App（可选）
+### 7. 手机访问（可选）
 
+**阅读页面**（局域网直连）：
 1. 电脑运行 `start_http.bat`
-2. 打开 [claude.ai](https://claude.ai) → Settings → Integrations → Add Custom Connector
-3. URL 填 `http://你的局域网IP:8766/mcp`，传输类型选 Streamable HTTP
-4. 手机 Claude App 会自动同步，直接可用
+2. 手机浏览器打开 `http://你的局域网IP:8765`（需同一网络或 Tailscale）
+
+**MCP 连接手机 Claude App**（需公网）：
+- claude.ai 的 Custom Connector 需要公网可达的 URL，局域网 IP 不行
+- 方案 A：用 Tailscale Funnel / ngrok / Cloudflare Tunnel 暴露本地端口
+- 方案 B：部署到云 VM
+- 部署后在 claude.ai → Settings → Add Custom Connector，URL 填公网地址 + `/mcp`
 
 ### 8. 启用浏览器感知（可选）
 

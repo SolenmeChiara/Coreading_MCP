@@ -670,17 +670,18 @@ def start_reading(book_id: int) -> str:
 
 # ========== 启动 ==========
 
-MCP_HOST = os.environ.get("MCP_HOST", "127.0.0.1")
-MCP_PORT = int(os.environ.get("MCP_PORT", "8766"))
+MCP_HOST = os.environ.get("MCP_HOST", "127.0.0.1").strip()
+MCP_PORT = int(os.environ.get("MCP_PORT", "8766").strip())
 
 
 def main():
-    if "--http" in sys.argv:
-        logger.info("Starting Streamable HTTP server on %s:%d", MCP_HOST, MCP_PORT)
-        mcp.run(transport="streamable-http", host=MCP_HOST, port=MCP_PORT)
-    elif "--sse" in sys.argv:
-        logger.info("Starting SSE server on %s:%d", MCP_HOST, MCP_PORT)
-        mcp.run(transport="sse", host=MCP_HOST, port=MCP_PORT)
+    if "--http" in sys.argv or "--sse" in sys.argv:
+        mcp.settings.host = MCP_HOST
+        mcp.settings.port = MCP_PORT
+
+        transport = "streamable-http" if "--http" in sys.argv else "sse"
+        logger.info("Starting %s server on %s:%d", transport, MCP_HOST, MCP_PORT)
+        mcp.run(transport=transport)
     else:
         logger.info("Starting stdio server")
         mcp.run(transport="stdio")
