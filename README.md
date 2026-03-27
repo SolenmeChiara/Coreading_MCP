@@ -1,0 +1,179 @@
+# 共读书房 Co-Reading Room
+
+基于 MCP 协议的共读系统。用户在浏览器里阅读文档，Claude 通过 MCP 工具参与阅读和批注。
+
+核心理念：**「一起一点点看完一本书」**——Claude 只知道双方一起翻过的内容，没有预读、没有全书索引。
+
+## 架构
+
+```
+Claude Desktop ←stdio→ MCP Server (server.py, FastMCP)
+                              ↕
+                         SQLite (WAL 模式)
+                              ↕
+Browser ←HTTP/SSE→ Web Server (web.py, FastAPI)
+```
+
+双进程架构：MCP 服务器走 stdio 与 Claude 通信，Web 服务器走 HTTP 与浏览器通信，两者通过 SQLite 文件共享状态。
+
+### 为什么拆两个进程
+
+- MCP stdio 对 stdout 有严格要求，混合 HTTP 日志会干扰协议
+- 可独立重启、独立调试
+- 开源后用户可按需只启动一个
+
+## 功能
+
+### 阅读模式
+- 上传 TXT / PDF 文档，自动分页
+- 逐页阅读，Claude 参与批注和讨论
+- PDF 截图为主视图 + canvas 区域框选批注（bbox 坐标锚定）
+- 跨页聊天面板，SSE 实时推送
+- 记忆压缩：翻页时异步生成摘要，构建阅读上下文窗口
+- RAG 混合检索：FTS5 + 向量双路召回，embedding 不可用时自动降级
+
+### 写作模式
+- Claude 可通过 `create_book` 工具生成新文档
+- 段落级可编辑，revision 乐观锁防冲突
+- Claude 通过 `suggest_edit` 提出修改建议，用户 Accept / Reject
+- 段落签名锚定防漂移，版本快照可回滚
+
+### 多书同时阅读
+- Tab 栏切换，每本书独立会话状态和 SSE 连接
+- 书架双栏布局：上传 | 创作
+
+### 浏览器感知
+- 配合 Playwright MCP，Claude 可以看到浏览器界面、点击按钮、滚动页面
+- 每次新会话可通过 `get_browser_hint` + `browser_snapshot` 了解用户当前状态
+
+### 自定义
+- 三套预设主题（深色 / 浅色 / 护眼）
+- Claude 可通过 `customize_theme` 实时修改任意 CSS 变量
+- 导出 Markdown 阅读笔记
+
+## MCP 工具一览
+
+| 工具 | 功能 |
+|---|---|
+| `list_books` | 列出书架和阅读进度 |
+| `read_current_page` | 获取当前页内容 + 上下文 + 摘要 |
+| `annotate` | 写批注（段落/区域/整页） |
+| `turn_page` | 翻页，触发记忆压缩 |
+| `reply` | 回复用户聊天消息 |
+| `delete_my_annotation` | 删除自己的批注 |
+| `get_page_history` | 回看某页原文和批注 |
+| `search_memory` | 混合检索阅读记忆（FTS5 + 向量） |
+| `check_notifications` | 查看未读消息 |
+| `update_theme` | 切换预设主题 |
+| `customize_theme` | 自定义 CSS 配色变量 |
+| `export_notes` | 导出阅读笔记摘要 |
+| `create_book` | 创建新书（可选写作模式） |
+| `read_draft` | 查看写作模式草稿 |
+| `suggest_edit` | 对草稿段落提出修改建议 |
+| `build_search_index` | 构建向量检索索引 |
+| `get_browser_hint` | 获取浏览器地址和当前状态 |
+
+## 快速开始
+
+### 环境要求
+
+- Python 3.11+
+- pip 依赖：见 `co-reading/requirements.txt`
+- 可选：PyMuPDF（PDF 支持）、openai SDK（记忆压缩和 RAG）
+
+### 安装
+
+```bash
+cd co-reading
+pip install -r requirements.txt
+cp .env.example .env  # 编辑填入 API key（可选）
+```
+
+### 启动
+
+**本地模式**（Claude Desktop + 浏览器）：
+
+```bash
+# 方式 1：一键启动 Web 服务器（MCP 由 Claude Desktop 自动管理）
+start.bat
+
+# 方式 2：手动启动
+python web.py  # 浏览器打开 http://localhost:8765
+```
+
+Claude Desktop 配置（`claude_desktop_config.json`）：
+
+```json
+{
+  "mcpServers": {
+    "co-reading": {
+      "command": "python",
+      "args": ["D:/path/to/co-reading/server.py"],
+      "env": { "COREADING_USER": "你的名字" }
+    }
+  }
+}
+```
+
+**远程模式**（手机访问）：
+
+```bash
+start_http.bat  # 同时启动 Web(0.0.0.0:8765) + MCP HTTP(0.0.0.0:8766)
+```
+
+手机 Claude App：在 claude.ai 添加 Custom Connector，URL 填 `http://你的IP:8766/mcp`。
+
+### 配置项
+
+| 环境变量 | 说明 | 默认值 |
+|---|---|---|
+| `COREADING_USER` | 用户名 | Reader |
+| `SUMMARY_API_BASE` | 记忆压缩 API | https://api.openai.com/v1 |
+| `SUMMARY_API_KEY` | 记忆压缩 API Key | （空） |
+| `SUMMARY_MODEL` | 记忆压缩模型 | gpt-4o-mini |
+| `EMBEDDING_API_BASE` | 向量检索 API | http://localhost:11434/v1 |
+| `EMBEDDING_API_KEY` | 向量检索 API Key | ollama |
+| `EMBEDDING_MODEL` | Embedding 模型 | nomic-embed-text |
+| `MCP_HOST` | MCP HTTP 监听地址 | 127.0.0.1 |
+| `MCP_PORT` | MCP HTTP 端口 | 8766 |
+
+也可在浏览器设置页配置，存入数据库。
+
+## 技术栈
+
+- **后端**：Python, FastMCP, FastAPI, uvicorn, aiosqlite
+- **数据库**：SQLite（WAL 模式），11 张表
+- **文档解析**：PyMuPDF (PDF), 内置 (TXT)
+- **前端**：纯 HTML + CSS + 原生 JS，无构建工具
+- **实时推送**：SSE (Server-Sent Events)
+- **向量检索**：OpenAI 兼容 Embedding API + 纯 Python 余弦相似度
+
+## 文件结构
+
+```
+co-reading/
+├── server.py          # MCP 服务器（FastMCP, stdio/HTTP/SSE）
+├── web.py             # FastAPI HTTP 服务器
+├── parser.py          # 文档解析（PDF/TXT → 分页）
+├── memory.py          # 上下文拼装 + 记忆压缩
+├── embedding.py       # RAG 向量检索
+├── database.py        # SQLite 数据库（11 张表）
+├── config.py          # 配置项
+├── requirements.txt
+├── start.bat          # Windows 一键启动（stdio）
+├── start_http.bat     # Windows 一键启动（HTTP 远程）
+├── .env.example       # 环境变量模板
+├── frontend/
+│   ├── index.html
+│   ├── style.css
+│   └── app.js
+└── data/
+    ├── welcome.txt    # 首次启动种子文本
+    ├── library.db     # SQLite 数据库（gitignore）
+    ├── uploads/       # 上传文件（gitignore）
+    └── screenshots/   # PDF 截图（gitignore）
+```
+
+## 许可
+
+MIT
