@@ -23,7 +23,7 @@ start "WebServer" cmd /k "cd /d %MYDIR% && set HTTP_HOST=0.0.0.0 && set COREADIN
 
 start "MCPServer" cmd /k "cd /d %MYDIR% && set MCP_HOST=%MCP_HOST% && set MCP_PORT=%MCP_PORT% && set COREADING_USER=%COREADING_USER% && python server.py --http"
 
-start "Playwright" cmd /k "npx @playwright/mcp@latest --port 8767 --host 0.0.0.0 --headless"
+start "Playwright" cmd /k "npx @playwright/mcp@latest --port 8767 --host 0.0.0.0 --headless --allowed-hosts *"
 
 echo  Starting 3 servers...
 
