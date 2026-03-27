@@ -73,57 +73,151 @@ Browser ←HTTP/SSE→ Web Server (web.py, FastAPI)
 | `build_search_index` | 构建向量检索索引 |
 | `get_browser_hint` | 获取浏览器地址和当前状态 |
 
-## 快速开始
+## 安装教程
 
-### 环境要求
+### 1. 环境要求
 
-- Python 3.11+
-- pip 依赖：见 `co-reading/requirements.txt`
-- 可选：PyMuPDF（PDF 支持）、openai SDK（记忆压缩和 RAG）
+| 工具 | 最低版本 | 说明 |
+|---|---|---|
+| Python | 3.11+ | 推荐 3.12 或 3.13 |
+| pip | 最新 | Python 自带 |
+| Node.js | 18+ | 仅 Playwright 浏览器感知需要（可选） |
+| Claude Desktop | 最新 | MCP 客户端 |
 
-### 安装
+### 2. 克隆仓库
+
+```bash
+git clone https://github.com/SolenmeChiara/Coreading_MCP.git
+cd Coreading_MCP
+```
+
+### 3. 安装依赖
 
 ```bash
 cd co-reading
 pip install -r requirements.txt
-cp .env.example .env  # 编辑填入 API key（可选）
 ```
 
-### 启动
+依赖说明：
+- `fastmcp` + `mcp`：MCP 协议核心
+- `fastapi` + `uvicorn`：Web 服务器
+- `PyMuPDF`：PDF 解析和截图
+- `openai`：记忆压缩和 RAG 向量检索（OpenAI 兼容格式，支持 Ollama、硅基流动、OpenRouter 等）
+- `aiosqlite`：异步 SQLite 操作
 
-**本地模式**（Claude Desktop + 浏览器）：
+### 4. 配置（可选）
 
 ```bash
-# 方式 1：一键启动 Web 服务器（MCP 由 Claude Desktop 自动管理）
-start.bat
-
-# 方式 2：手动启动
-python web.py  # 浏览器打开 http://localhost:8765
+cp .env.example .env
 ```
 
-Claude Desktop 配置（`claude_desktop_config.json`）：
+编辑 `.env` 填入你的配置。**不配置也能正常阅读和批注**，只是记忆压缩和向量检索不会工作。
+
+```env
+# 用户名（显示在批注和聊天中）
+COREADING_USER=你的名字
+
+# 记忆压缩（翻页时自动生成摘要）
+SUMMARY_API_BASE=https://api.openai.com/v1
+SUMMARY_API_KEY=sk-xxx
+SUMMARY_MODEL=gpt-4o-mini
+
+# 向量检索（默认本地 Ollama，也可用云端）
+EMBEDDING_API_BASE=http://localhost:11434/v1
+EMBEDDING_API_KEY=ollama
+EMBEDDING_MODEL=nomic-embed-text
+```
+
+也可以启动后在浏览器设置页 (齿轮图标) 里配置，效果相同。
+
+### 5. 启动
+
+#### 方式 A：一键启动（Windows，推荐）
+
+双击 `start.bat`，会自动启动 Web 服务器并打开浏览器。
+
+MCP 服务器由 Claude Desktop 自动管理（见下方配置）。
+
+#### 方式 B：手动启动
+
+```bash
+# 终端 1：启动 Web 服务器
+python web.py
+# 浏览器打开 http://localhost:8765
+
+# MCP 服务器不需要手动启动，Claude Desktop 会通过 stdio 自动拉起
+```
+
+#### 方式 C：远程模式（手机访问）
+
+双击 `start_http.bat`，同时启动：
+- Web 服务器 → `http://你的局域网IP:8765`（手机浏览器打开）
+- MCP HTTP 服务器 → `http://你的局域网IP:8766/mcp`（手机 Claude App 连接）
+
+### 6. 连接 Claude Desktop
+
+编辑 Claude Desktop 配置文件：
+- Windows: `%APPDATA%\Claude\claude_desktop_config.json`
+- macOS: `~/Library/Application Support/Claude/claude_desktop_config.json`
+
+在 `mcpServers` 中添加：
 
 ```json
 {
   "mcpServers": {
     "co-reading": {
       "command": "python",
-      "args": ["D:/path/to/co-reading/server.py"],
-      "env": { "COREADING_USER": "你的名字" }
+      "args": ["你的路径/co-reading/server.py"],
+      "env": {
+        "COREADING_USER": "你的名字"
+      }
     }
   }
 }
 ```
 
-**远程模式**（手机访问）：
+重启 Claude Desktop，在对话中输入：
 
-```bash
-start_http.bat  # 同时启动 Web(0.0.0.0:8765) + MCP HTTP(0.0.0.0:8766)
+> 请用 start_reading prompt 开始共读 book_id=1 的书
+
+### 7. 连接手机 Claude App（可选）
+
+1. 电脑运行 `start_http.bat`
+2. 打开 [claude.ai](https://claude.ai) → Settings → Integrations → Add Custom Connector
+3. URL 填 `http://你的局域网IP:8766/mcp`，传输类型选 Streamable HTTP
+4. 手机 Claude App 会自动同步，直接可用
+
+### 8. 启用浏览器感知（可选）
+
+在 Claude Desktop 配置中额外添加 Playwright MCP：
+
+```json
+{
+  "mcpServers": {
+    "co-reading": { "..." : "..." },
+    "playwright": {
+      "command": "npx",
+      "args": ["@playwright/mcp@latest"]
+    }
+  }
+}
 ```
 
-手机 Claude App：在 claude.ai 添加 Custom Connector，URL 填 `http://你的IP:8766/mcp`。
+需要 Node.js 环境。首次使用时 Playwright 会自动下载 Chromium。
 
-### 配置项
+启用后 Claude 可以看到浏览器界面、点击按钮、滚动页面，实现更深度的共读体验。
+
+### 9. 使用流程
+
+1. 浏览器打开 `http://localhost:8765`
+2. 拖拽上传 TXT 或 PDF 文件
+3. 点击书卡进入阅读
+4. 在 Claude Desktop 中让 Claude 开始共读
+5. 双方可以独立写批注、聊天讨论
+6. Claude 的批注会通过 SSE 实时出现在浏览器中
+7. 点击齿轮图标进入设置，可配置主题和 API
+
+### 配置项速查
 
 | 环境变量 | 说明 | 默认值 |
 |---|---|---|
@@ -136,8 +230,7 @@ start_http.bat  # 同时启动 Web(0.0.0.0:8765) + MCP HTTP(0.0.0.0:8766)
 | `EMBEDDING_MODEL` | Embedding 模型 | nomic-embed-text |
 | `MCP_HOST` | MCP HTTP 监听地址 | 127.0.0.1 |
 | `MCP_PORT` | MCP HTTP 端口 | 8766 |
-
-也可在浏览器设置页配置，存入数据库。
+| `HTTP_HOST` | Web 服务器监听地址 | 127.0.0.1 |
 
 ## 技术栈
 
